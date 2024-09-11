@@ -1,44 +1,67 @@
 <template>
-  <section
-    :style="`background: ${options.color}`"
-    @drop="onDrop($event, options.id)"
-    @dragover.prevent
-    @dragenter.prevent>
-    <div class="title">
-      <h2>
-        {{ options.title }}
-      </h2>
-      <div class="counter">
-        <span>{{ cards.length }}</span>
+  <div class="list">
+    <div class="sort-panel">
+      Сортировка по рейтингу:
+      <div class="buttons">
+        <v-tooltip
+          v-for="(button, index) in sortButtons"
+          :key="index"
+          :text="button.tooltip"
+          location="top">
+          <template v-slot:activator="{ props }">
+            <v-btn
+              v-bind="props"
+              :icon="button.icon"
+              density="compact"
+              variant="tonal"
+              class="sort-btn"
+              color="blue"
+              @click="sortList(button)" />
+          </template>
+        </v-tooltip>
       </div>
     </div>
-    <v-btn
-      icon="mdi-plus"
-      variant="tonal"
-      class="mt-5"
-      color="white"
-      @click="isNewCardDialogOpen = true" />
+    <section
+      :style="`background: ${options.color}`"
+      @drop="onDrop($event, options.id)"
+      @dragover.prevent
+      @dragenter.prevent>
+      <div class="title">
+        <h2>
+          {{ options.title }}
+        </h2>
+        <div class="counter">
+          <span>{{ cards.length }}</span>
+        </div>
+      </div>
+      <v-btn
+        icon="mdi-plus"
+        variant="tonal"
+        class="mt-5"
+        color="white"
+        @click="isNewCardDialogOpen = true" />
 
-    <CardItem
-      v-for="(card, index) in cards"
-      draggable="true"
-      :key="index"
-      :card="card"
-      :options="props.options"
-      @delete-card="deleteCard(card.id)"
-      @dragstart="onDragStart($event, card)" />
+      <CardItem
+        v-for="(card, index) in cards"
+        draggable="true"
+        :key="index"
+        :card="card"
+        :options="props.options"
+        @delete-card="deleteCard(card.id)"
+        @dragstart="onDragStart($event, card)" />
 
-    <CardForm
-      title="Добавление новой карточки"
-      v-model="isNewCardDialogOpen"
-      :form="form"
-      @save-card="addCard"
-      @close-form="isNewCardDialogOpen = false" />
-  </section>
+      <CardForm
+        title="Добавление новой карточки"
+        v-model="isNewCardDialogOpen"
+        :form="form"
+        @save-card="addCard"
+        @close-form="isNewCardDialogOpen = false" />
+    </section>
+  </div>
 </template>
 
 <script setup>
-  import { ref, inject } from 'vue';
+import {ref, inject, watch} from 'vue';
   import CardItem from './CardItem.vue';
   import CardForm from './CardForm.vue';
 
@@ -63,19 +86,50 @@
   });
 
   let cards = ref([]);
+  let cashedCards = ref([]);
 
+  const sortButtons = ref([
+    {
+      tooltip: `По возрастанию`,
+      action: `descending`,
+      icon: `mdi-sort-descending`,
+      sortMethod: function(a, b) {
+        return a.rating.rate - b.rating.rate
+      }
+    },
+    {
+      tooltip: `По убыванию`,
+      action: `ascending`,
+      icon: `mdi-sort-ascending`,
+      sortMethod: function(a, b) {
+        return b.rating.rate - a.rating.rate
+      }
+    },
+    {
+      tooltip: `Без сортировки`,
+      action: `default`,
+      icon: `mdi-sort`,
+      sortMethod: function() {
+        return cashedCards.value;
+      }
+    },
+  ]);
+  watch([firstList, secondList, lastList], () => {
+    getLocalCards();
+  })
   function getLocalCards() {
     switch (props.options.id) {
       case 1:
-        cards = firstList;
+        cashedCards.value = firstList.value;
         break;
       case 2:
-        cards = secondList;
+        cashedCards.value = secondList.value;
         break;
       case 3:
-        cards = lastList;
+        cashedCards.value = lastList.value;
         break;
     }
+    cards.value = [...cashedCards.value];
   }
   getLocalCards();
 
@@ -112,10 +166,12 @@
 
     const newCard = otherLists.find((card) => card.id === itemId);
 
-    firstList.value = firstList.value.filter((card) => card.id !== newCard.id);
-    secondList.value = secondList.value.filter((card) => card.id !== newCard.id);
-    lastList.value = lastList.value.filter((card) => card.id !== newCard.id);
-    cards.value.unshift(newCard);
+    if (newCard) {
+      firstList.value = firstList.value.filter((card) => card.id !== newCard.id);
+      secondList.value = secondList.value.filter((card) => card.id !== newCard.id);
+      lastList.value = lastList.value.filter((card) => card.id !== newCard.id);
+      cards.value.unshift(newCard);
+    }
 
     switch (optionsId) {
       case 1:
@@ -129,12 +185,40 @@
         break;
     }
   }
+  function sortList(button) {
+    getLocalCards();
+    if (button.action !== 'default') {
+      cards.value = [...cards.value].sort(button.sortMethod);
+    } else {
+      cards.value = cashedCards.value;
+    }
+  }
 </script>
 
 <style lang="scss" scoped>
+.list {
+  width: 400px;
+  min-height: 500px;
+  height: fit-content;
+  .sort-panel {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    margin-bottom: 10px;
+    padding: 0 10px;
+    color: white;
+    .buttons {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 5%;
+      width: 40%;
+    }
+  }
   section {
     padding: 10px;
-    width: 400px;
+    width: 100%;
     min-height: 500px;
     height: fit-content;
     border-radius: 10px;
@@ -160,4 +244,5 @@
       }
     }
   }
+}
 </style>
